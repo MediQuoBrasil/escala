@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Escala Médica</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Estilos customizados para o sistema */
+        .sidebar-hidden { transform: translateX(-100%); }
+        .loader { 
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    
+    <!-- Overlay para mobile -->
+    <div id="overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden lg:hidden"></div>
+
+    <!-- Sidebar -->
+    <div id="sidebar" class="fixed left-0 top-0 h-full w-64 bg-white shadow-lg transform transition-transform duration-300 z-50 sidebar-hidden lg:translate-x-0">
+        <div class="p-6 border-b">
+            <h1 class="text-xl font-bold text-gray-800">
+                <i class="fas fa-hospital-alt text-blue-600 mr-2"></i>
+                Escala Médica
+            </h1>
+        </div>
+        
+        <!-- Menu de navegação -->
+        <nav class="mt-6">
+            <div id="menu-items" class="space-y-2 px-4">
+                <!-- Os itens do menu serão inseridos dinamicamente via JavaScript -->
+            </div>
+        </nav>
+        
+        <!-- Botão de logout -->
+        <div class="absolute bottom-4 left-4 right-4">
+            <button id="logout-btn" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg transition-colors">
+                <i class="fas fa-sign-out-alt mr-2"></i>
+                Logout
+            </button>
+        </div>
+    </div>
+
+    <!-- Conteúdo principal -->
+    <div class="lg:ml-64 min-h-screen">
+        <!-- Header -->
+        <header class="bg-white shadow-sm border-b px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <button id="menu-toggle" class="lg:hidden text-gray-500 hover:text-gray-700 mr-4">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <h2 id="page-title" class="text-2xl font-semibold text-gray-800">Dashboard</h2>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="user-info" class="text-right">
+                        <p class="text-sm text-gray-600">Bem-vindo(a),</p>
+                        <p id="user-name" class="font-semibold text-gray-800">Carregando...</p>
+                    </div>
+                    <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                        <span id="user-initials">?</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Área de conteúdo -->
+        <main id="main-content" class="p-6">
+            <!-- O conteúdo será carregado dinamicamente aqui -->
+        </main>
+    </div>
+
+    <!-- Modal de loading -->
+    <div id="loading-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 flex items-center space-x-4">
+            <div class="loader"></div>
+            <span>Carregando...</span>
+        </div>
+    </div>
+
+    <!-- Modal de confirmação -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 class="text-lg font-semibold mb-4" id="confirm-title">Confirmar ação</h3>
+            <p class="text-gray-600 mb-6" id="confirm-message">Tem certeza que deseja executar esta ação?</p>
+            <div class="flex space-x-4 justify-end">
+                <button id="confirm-cancel" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    Cancelar
+                </button>
+                <button id="confirm-ok" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * CONFIGURAÇÃO GLOBAL
+         * Altere aqui as configurações do frontend
+         */
+        const CONFIG = {
+            // URL do Google Apps Script (Web App)
+            API_URL: 'https://script.google.com/macros/s/SEU_SCRIPT_ID/exec',
+            
+            // Configurações de interface
+            APP_NAME: 'Sistema de Escala Médica',
+            
+            // Chaves do localStorage
+            STORAGE_KEYS: {
+                TOKEN: 'medical_schedule_token',
+                USER: 'medical_schedule_user'
+            }
+        };
+
+        /**
+         * GERENCIAMENTO DE ESTADO GLOBAL
+         * Controla o estado da aplicação
+         */
+        class AppState {
+            constructor() {
+                this.currentUser = null;
+                this.token = null;
+                this.currentPage = 'dashboard';
+                this.isLoading = false;
+            }
+
+            // Carrega estado do localStorage
+            loadFromStorage() {
+                const token = localStorage.getItem(CONFIG.STORAGE_KEYS.TOKEN);
+                const userData = localStorage.getItem(CONFIG.STORAGE_KEYS.USER);
+                
+                if (token && userData) {
+                    this.token = token;
+                    this.currentUser = JSON.parse(userData);
+                    return true;
+                }
+                return false;
+            }
+
+            // Salva estado no localStorage
+            saveToStorage() {
+                if (this.token && this.currentUser) {
+                    localStorage.setItem(CONFIG.STORAGE_KEYS.TOKEN, this.token);
+                    localStorage.setItem(CONFIG.STORAGE_KEYS.USER, JSON.stringify(this.currentUser));
+                }
+            }
+
+            // Limpa estado
+            clear() {
+                this.currentUser = null;
+                this.token = null;
+                localStorage.removeItem(CONFIG.STORAGE_KEYS.TOKEN);
+                localStorage.removeItem(CONFIG.STORAGE_KEYS.USER);
+            }
+
+            // Verifica se usuário está logado
+            isLoggedIn() {
+                return this.token && this.currentUser;
+            }
+
+            // Verifica se usuário é admin
+            isAdmin() {
+                return this.currentUser && this.currentUser.tipo === 'admin';
+            }
+        }
+
+        /**
+         * SERVIÇO DE API
+         * Gerencia comunicação com o backend Google Apps Script
+         */
+        class ApiService {
+            constructor() {
+                this.baseUrl = CONFIG.API_URL;
+            }
+
+            // Faz requisição GET para a API
+            async get(action, params = {}) {
+                const url = new URL(this.baseUrl);
+                url.searchParams.append('action', action);
+                
+                if (appState.token) {
+                    url.searchParams.append('token', appState.token);
+                }
+                
+                Object.keys(params).forEach(key => {
+                    if (params[key] !== null && params[key] !== undefined) {
+                        url.searchParams.append(key, params[key]);
+                    }
+                });
+
+                try {
+                    const response = await fetch(url);
+                    return await response.json();
+                } catch (error) {
+                    console.error('Erro na requisição GET:', error);
+                    throw new Error('Erro de conexão com o servidor');
+                }
+            }
+
+            // Faz requisição POST para a API
+            async post(data) {
+                try {
+                    if (appState.token) {
+                        data.token = appState.token;
+                    }
+
+                    const response = await fetch(this.baseUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(data)
+                    });
+
+                    return await response.json();
+                } catch (error) {
+                    console.error('Erro na requisição POST:', error);
+                    throw new Error('Erro de conexão com o servidor');
+                }
+            }
+
+            // Métodos específicos da API
+            async login(email, cpf) {
+                return await this.post({
+                    action: 'login',
+                    email: email,
+                    cpf: cpf
+                });
+            }
+
+            async logout() {
+                return await this.post({
+                    action: 'logout'
+                });
+            }
+
+            async validateSession() {
+                return await this.get('validateSession');
+            }
+
+            async cadastrarMedico(medicoData) {
+                return await this.post({
+                    action: 'cadastrarMedico',
+                    medicoData: medicoData
+                });
+            }
+
+            async listarMedicos() {
+                return await this.get('listarMedicos');
+            }
+
+            async criarEscalaMensal(dataInicio, dataFim) {
+                return await this.post({
+                    action: 'criarEscalaMensal',
+                    dataInicio: dataInicio,
+                    dataFim: dataFim
+                });
+            }
+
+            async listarEscalaPeriodo(dataInicio, dataFim) {
+                return await this.get('listarEscalaPeriodo', {
+                    dataInicio: dataInicio,
+                    dataFim: dataFim
+                });
+            }
+
+            async atribuirPlantao(plantaoId, medicoId) {
+                return await this.post({
+                    action: 'atribuirPlantao',
+                    plantaoId: plantaoId,
+                    medicoId: medicoId
+                });
+            }
+
+            async listarPlantoesMedico(medicoId) {
+                return await this.get('listarPlantoesMedico', { medicoId: medicoId });
+            }
+
+            async solicitarTrocaPlantao(plantaoId, medicoSubstitutoId, observacoes) {
+                return await this.post({
+                    action: 'solicitarTrocaPlantao',
+                    plantaoId: plantaoId,
+                    medicoSubstitutoId: medicoSubstitutoId,
+                    observacoes: observacoes
+                });
+            }
+
+            async responderTrocaPlantao(trocaId, aceitar) {
+                return await this.post({
+                    action: 'responderTrocaPlantao',
+                    trocaId: trocaId,
+                    aceitar: aceitar
+                });
+            }
+
+            async listarTrocasPendentes() {
+                return await this.get('listarTrocasPendentes');
+            }
+
+            async gerarRelatorioHoras(dataInicio, dataFim) {
+                return await this.get('gerarRelatorioHoras', {
+                    dataInicio: dataInicio,
+                    dataFim: dataFim
+                });
+            }
+        }
+
+        /**
+         * GERENCIADOR DE UI
+         * Controla elementos da interface
+         */
+        class UIManager {
+            constructor() {
+                this.sidebar = document.getElementById('sidebar');
+                this.overlay = document.getElementById('overlay');
+                this.mainContent = document.getElementById('main-content');
+                this.pageTitle = document.getElementById('page-title');
+                this.menuItems = document.getElementById('menu-items');
+                this.userName = document.getElementById('user-name');
+                this.userInitials = document.getElementById('user-initials');
+                
+                this.initializeEventListeners();
+            }
+
+            // Inicializa event listeners
+            initializeEventListeners() {
+                // Toggle do menu mobile
+                document.getElementById('menu-toggle').addEventListener('click', () => {
+                    this.toggleSidebar();
+                });
+
+                // Fechar menu ao clicar no overlay
+                this.overlay.addEventListener('click', () => {
+                    this.closeSidebar();
+                });
+
+                // Logout
+                document.getElementById('logout-btn').addEventListener('click', () => {
+                    this.showConfirm('Logout', 'Tem certeza que deseja sair do sistema?', () => {
+                        app.logout();
+                    });
+                });
+
+                // Modais
+                document.getElementById('confirm-cancel').addEventListener('click', () => {
+                    this.hideConfirm();
+                });
+            }
+
+            // Controle do sidebar
+            toggleSidebar() {
+                this.sidebar.classList.toggle('sidebar-hidden');
+                this.overlay.classList.toggle('hidden');
+            }
+
+            closeSidebar() {
+                this.sidebar.classList.add('sidebar-hidden');
+                this.overlay.classList.add('hidden');
+            }
+
+            // Atualiza informações do usuário na UI
+            updateUserInfo(user) {
+                this.userName.textContent = user.nome;
+                
+                // Iniciais do nome
+                const initials = user.nome
+                    .split(' ')
+                    .map(n => n[0])
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase();
+                this.userInitials.textContent = initials;
+            }
+
+            // Gera menu baseado no tipo de usuário
+            generateMenu(userType) {
+                const menuItems = [];
+
+                // Menu comum
+                menuItems.push({
+                    icon: 'fas fa-home',
+                    text: 'Dashboard',
+                    page: 'dashboard'
+                });
+
+                menuItems.push({
+                    icon: 'fas fa-calendar-alt',
+                    text: 'Meus Plantões',
+                    page: 'my-schedule'
+                });
+
+                menuItems.push({
+                    icon: 'fas fa-exchange-alt',
+                    text: 'Trocas de Plantão',
+                    page: 'exchanges'
+                });
+
+                // Menu específico para admin
+                if (userType === 'admin') {
+                    menuItems.push({
+                        icon: 'fas fa-users',
+                        text: 'Gerenciar Médicos',
+                        page: 'manage-doctors'
+                    });
+
+                    menuItems.push({
+                        icon: 'fas fa-calendar-plus',
+                        text: 'Criar Escala',
+                        page: 'create-schedule'
+                    });
+
+                    menuItems.push({
+                        icon: 'fas fa-calendar-check',
+                        text: 'Gerenciar Escala',
+                        page: 'manage-schedule'
+                    });
+
+                    menuItems.push({
+                        icon: 'fas fa-chart-bar',
+                        text: 'Relatórios',
+                        page: 'reports'
+                    });
+                }
+
+                // Renderizar menu
+                this.menuItems.innerHTML = menuItems.map(item => `
+                    <button class="menu-item w-full text-left px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors flex items-center space-x-3" data-page="${item.page}">
+                        <i class="${item.icon}"></i>
+                        <span>${item.text}</span>
+                    </button>
+                `).join('');
+
+                // Adicionar event listeners aos itens do menu
+                document.querySelectorAll('.menu-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        const page = e.currentTarget.dataset.page;
+                        this.setActivePage(page);
+                        app.navigateToPage(page);
+                        this.closeSidebar();
+                    });
+                });
+            }
+
+            // Define página ativa no menu
+            setActivePage(page) {
+                document.querySelectorAll('.menu-item').forEach(item => {
+                    item.classList.remove('bg-blue-100', 'text-blue-600');
+                });
+
+                const activeItem = document.querySelector(`[data-page="${page}"]`);
+                if (activeItem) {
+                    activeItem.classList.add('bg-blue-100', 'text-blue-600');
+                }
+            }
+
+            // Atualiza título da página
+            setPageTitle(title) {
+                this.pageTitle.textContent = title;
+            }
+
+            // Carrega conteúdo na área principal
+            loadContent(html) {
+                this.mainContent.innerHTML = html;
+                this.mainContent.classList.add('fade-in');
+            }
+
+            // Modais e overlays
+            showLoading() {
+                document.getElementById('loading-modal').classList.remove('hidden');
+            }
+
+            hideLoading() {
+                document.getElementById('loading-modal').classList.add('hidden');
+            }
+
+            showConfirm(title, message, onConfirm) {
+                document.getElementById('confirm-title').textContent = title;
+                document.getElementById('confirm-message').textContent = message;
+                document.getElementById('confirm-modal').classList.remove('hidden');
+                
+                document.getElementById('confirm-ok').onclick = () => {
+                    this.hideConfirm();
+                    onConfirm();
+                };
+            }
+
+            hideConfirm() {
+                document.getElementById('confirm-modal').classList.add('hidden');
+            }
+
+            // Notificações
+            showNotification(message, type = 'info') {
+                const colors = {
+                    success: 'bg-green-500',
+                    error: 'bg-red-500',
+                    warning: 'bg-yellow-500',
+                    info: 'bg-blue-500'
+                };
+
+                const notification = document.createElement('div');
+                notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform duration-300`;
+                notification.textContent = message;
+
+                document.body.appendChild(notification);
+
+                // Animar entrada
+                setTimeout(() => {
+                    notification.style.transform = 'translateX(0)';
+                }, 100);
+
+                // Remover após 5 segundos
+                setTimeout(() => {
+                    notification.style.transform = 'translateX(full)';
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 300);
+                }, 5000);
+            }
+        }
+
+        /**
+         * GERENCIADOR DE PÁGINAS
+         * Controla o conteúdo das diferentes páginas
+         */
+        class PageManager {
+            constructor() {
+                this.pages = {};
+                this.initializePages();
+            }
+
+            // Inicializa todas as páginas
+            initializePages() {
+                this.pages = {
+                    'login': new LoginPage(),
+                    'dashboard': new DashboardPage(),
+                    'my-schedule': new MySchedulePage(),
+                    'exchanges': new ExchangesPage(),
+                    'manage-doctors': new ManageDoctorsPage(),
+                    'create-schedule': new CreateSchedulePage(),
+                    'manage-schedule': new ManageSchedulePage(),
+                    'reports': new ReportsPage()
+                };
+            }
+
+            // Renderiza página específica
+            async renderPage(pageName) {
+                const page = this.pages[pageName];
+                if (page) {
+                    ui.setPageTitle(page.title);
+                    const content = await page.render();
+                    ui.loadContent(content);
+                    
+                    // Chama método de inicialização da página se existir
+                    if (page.initialize) {
+                        page.initialize();
+                    }
+                } else {
+                    ui.loadContent('<div class="text-center text-red-500">Página não encontrada</div>');
+                }
+            }
+        }
+
+        /**
+         * CLASSE BASE PARA PÁGINAS
+         */
+        class BasePage {
+            constructor(title) {
+                this.title = title;
+            }
+
+            async render() {
+                return '<div>Página não implementada</div>';
+            }
+
+            // Método para formatar datas
+            formatDate(date) {
+                return new Date(date).toLocaleDateString('pt-BR');
+            }
+
+            // Método para formatar horários
+            formatTime(hour) {
+                return `${hour.toString().padStart(2, '0')}:00`;
+            }
+        }
+
+        /**
+         * PÁGINA DE LOGIN
+         */
+        class LoginPage extends BasePage {
+            constructor() {
+                super('Login');
+            }
+
+            async render() {
+                return `
+                    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
+                        <div class="max-w-md w-full bg-white rounded-lg shadow-xl p-8 mx-4">
+                            <div class="text-center mb-8">
+                                <i class="fas fa-hospital-alt text-4xl text-blue-600 mb-4"></i>
+                                <h1 class="text-2xl font-bold text-gray-800">${CONFIG.APP_NAME}</h1>
+                                <p class="text-gray-600">Entre com suas credenciais</p>
+                            </div>
+
+                            <form id="login-form">
+                                <div class="mb-4">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">
+                                        Email
+                                    </label>
+                                    <input type="email" id="login-email" required 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                                </div>
+
+                                <div class="mb-6">
+                                    <label class="block text-gray-700 text-sm font-bold mb-2">
+                                        CPF (senha)
+                                    </label>
+                                    <input type="text" id="login-cpf" required maxlength="11"
+                                           placeholder="Apenas números"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
+                                </div>
+
+                                <button type="submit" 
+                                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                                    Entrar
+                                </button>
+                            </form>
+
+                            <div id="login-error" class="mt-4 text-red-500 text-sm text-center hidden"></div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            initialize() {
+                document.getElementById('login-form').addEventListener('submit', this.handleLogin.bind(this));
+                
+                // Máscara para CPF
+                document.getElementById('login-cpf').addEventListener('input', (e) => {
+                    e.target.value = e.target.value.replace(/\D/g, '');
+                });
+            }
+
+            async handleLogin(e) {
+                e.preventDefault();
+                
+                const email = document.getElementById('login-email').value;
+                const cpf = document.getElementById('login-cpf').value;
+                const errorDiv = document.getElementById('login-error');
+
+                // Validações básicas
+                if (!email || !cpf) {
+                    this.showError('Por favor, preencha todos os campos');
+                    return;
+                }
+
+                if (cpf.length !== 11) {
+                    this.showError('CPF deve ter 11 dígitos');
+                    return;
+                }
+
+                try {
+                    ui.showLoading();
+                    const result = await api.login(email, cpf);
+
+                    if (result.success) {
+                        this.renderReport(result);
+                        document.getElementById('report-container').classList.remove('hidden');
+                    } else {
+                        ui.showNotification('Erro ao gerar relatório: ' + result.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Erro ao gerar relatório:', error);
+                    ui.showNotification('Erro de conexão', 'error');
+                } finally {
+                    ui.hideLoading();
+                }
+            }
+
+            renderReport(reportData) {
+                const { periodo, relatorio } = reportData;
+
+                // Calcular totais
+                const totalMedicos = relatorio.length;
+                const totalHoras = relatorio.reduce((acc, m) => acc + m.totalHoras, 0);
+                const totalPlantoes = relatorio.reduce((acc, m) => acc + m.quantidadePlantoes, 0);
+                const mediaHorasPorMedico = totalMedicos > 0 ? (totalHoras / totalMedicos).toFixed(1) : 0;
+
+                // Renderizar resumo
+                document.getElementById('report-summary').innerHTML = `
+                    <div class="bg-blue-50 rounded-lg p-4 text-center">
+                        <div class="text-3xl font-bold text-blue-600">${totalMedicos}</div>
+                        <div class="text-sm text-gray-600">Médicos</div>
+                    </div>
+                    <div class="bg-green-50 rounded-lg p-4 text-center">
+                        <div class="text-3xl font-bold text-green-600">${totalPlantoes}</div>
+                        <div class="text-sm text-gray-600">Plantões</div>
+                    </div>
+                    <div class="bg-purple-50 rounded-lg p-4 text-center">
+                        <div class="text-3xl font-bold text-purple-600">${totalHoras}h</div>
+                        <div class="text-sm text-gray-600">Total Horas</div>
+                    </div>
+                    <div class="bg-orange-50 rounded-lg p-4 text-center">
+                        <div class="text-3xl font-bold text-orange-600">${mediaHorasPorMedico}h</div>
+                        <div class="text-sm text-gray-600">Média/Médico</div>
+                    </div>
+                `;
+
+                // Renderizar tabela
+                const tableRows = relatorio.map(medico => {
+                    const mediaPorPlantao = medico.quantidadePlantoes > 0 
+                        ? (medico.totalHoras / medico.quantidadePlantoes).toFixed(1) 
+                        : 0;
+
+                    return `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold mr-3">
+                                        ${medico.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">${medico.nome}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                ${medico.quantidadePlantoes}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
+                                ${medico.totalHoras}h
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                ${mediaPorPlantao}h
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                document.getElementById('report-table-body').innerHTML = tableRows;
+
+                // Event listener para exportar
+                document.getElementById('export-report').onclick = () => {
+                    this.exportReport(reportData);
+                };
+            }
+
+            exportReport(reportData) {
+                // Criar CSV simples
+                let csv = 'Médico,Plantões,Total Horas,Média por Plantão\n';
+                
+                reportData.relatorio.forEach(medico => {
+                    const mediaPorPlantao = medico.quantidadePlantoes > 0 
+                        ? (medico.totalHoras / medico.quantidadePlantoes).toFixed(1) 
+                        : 0;
+                    
+                    csv += `"${medico.nome}",${medico.quantidadePlantoes},${medico.totalHoras},${mediaPorPlantao}\n`;
+                });
+
+                // Download do arquivo
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', `relatorio_${reportData.periodo.inicio}_${reportData.periodo.fim}.csv`);
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                ui.showNotification('Relatório exportado com sucesso!', 'success');
+            }
+        }
+
+        /**
+         * FUNÇÕES AUXILIARES GLOBAIS
+         */
+        
+        // Mostrar modal de atribuição de médico (para admin)
+        async function showAssignDoctorModal(plantaoId) {
+            try {
+                ui.showLoading();
+                const medicosResult = await api.listarMedicos();
+                
+                if (!medicosResult.success) {
+                    ui.showNotification('Erro ao carregar médicos', 'error');
+                    return;
+                }
+
+                ui.hideLoading();
+
+                const modalHtml = `
+                    <div id="assign-doctor-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                            <h3 class="text-lg font-semibold mb-4">Atribuir Médico ao Plantão</h3>
+                            <div class="space-y-3 max-h-60 overflow-y-auto mb-4">
+                                ${medicosResult.medicos.map(medico => `
+                                    <button class="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-blue-50 transition-colors"
+                                            onclick="confirmAssignDoctor('${plantaoId}', '${medico.id}')">
+                                        <div class="font-medium">${medico.nome}</div>
+                                        <div class="text-sm text-gray-600">${medico.email}</div>
+                                    </button>
+                                `).join('')}
+                            </div>
+                            <div class="flex justify-end">
+                                <button onclick="closeAssignDoctorModal()" 
+                                        class="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+            } catch (error) {
+                console.error('Erro ao abrir modal:', error);
+                ui.showNotification('Erro de conexão', 'error');
+                ui.hideLoading();
+            }
+        }
+
+        function closeAssignDoctorModal() {
+            const modal = document.getElementById('assign-doctor-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        async function confirmAssignDoctor(plantaoId, medicoId) {
+            closeAssignDoctorModal();
+
+            try {
+                ui.showLoading();
+                const result = await api.atribuirPlantao(plantaoId, medicoId);
+
+                if (result.success) {
+                    ui.showNotification('Plantão atribuído com sucesso!', 'success');
+                    
+                    // Recarregar página de gerenciamento
+                    if (appState.currentPage === 'manage-schedule') {
+                        await pageManager.pages['manage-schedule'].initialize();
+                    }
+                } else {
+                    ui.showNotification('Erro: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao atribuir plantão:', error);
+                ui.showNotification('Erro de conexão', 'error');
+            } finally {
+                ui.hideLoading();
+            }
+        }
+
+        // Expor funções globalmente para uso nos botões
+        window.showAssignDoctorModal = showAssignDoctorModal;
+        window.closeAssignDoctorModal = closeAssignDoctorModal;
+        window.confirmAssignDoctor = confirmAssignDoctor;
+
+        /**
+         * INICIALIZAÇÃO DA APLICAÇÃO
+         * Ponto de entrada quando o DOM estiver pronto
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            // Criar instância da aplicação
+            const medicalApp = new MedicalScheduleApp();
+            
+            // Inicializar
+            medicalApp.init();
+        });
+
+    </script>
+</body>
+</html>) {
+                        // Salvar dados no estado
+                        appState.token = result.token;
+                        appState.currentUser = result.user;
+                        appState.saveToStorage();
+
+                        // Redirecionar para dashboard
+                        app.init();
+                    } else {
+                        this.showError(result.error || 'Erro no login');
+                    }
+                } catch (error) {
+                    this.showError('Erro de conexão. Tente novamente.');
+                } finally {
+                    ui.hideLoading();
+                }
+            }
+
+            showError(message) {
+                const errorDiv = document.getElementById('login-error');
+                errorDiv.textContent = message;
+                errorDiv.classList.remove('hidden');
+                setTimeout(() => {
+                    errorDiv.classList.add('hidden');
+                }, 5000);
+            }
+        }
+
+        /**
+         * PÁGINA DO DASHBOARD
+         */
+        class DashboardPage extends BasePage {
+            constructor() {
+                super('Dashboard');
+            }
+
+            async render() {
+                return `
+                    <div class="space-y-6">
+                        <!-- Cards de estatísticas -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="stats-cards">
+                            <!-- Cards serão carregados dinamicamente -->
+                        </div>
+
+                        <!-- Próximos plantões -->
+                        <div class="bg-white rounded-lg shadow-sm p-6">
+                            <h3 class="text-lg font-semibold mb-4">
+                                <i class="fas fa-calendar-alt text-blue-500 mr-2"></i>
+                                Próximos Plantões
+                            </h3>
+                            <div id="upcoming-shifts" class="space-y-3">
+                                <!-- Plantões serão carregados aqui -->
+                            </div>
+                        </div>
+
+                        <!-- Trocas pendentes (se houver) -->
+                        <div id="pending-exchanges-section" class="bg-white rounded-lg shadow-sm p-6 hidden">
+                            <h3 class="text-lg font-semibold mb-4">
+                                <i class="fas fa-exchange-alt text-orange-500 mr-2"></i>
+                                Trocas Pendentes
+                            </h3>
+                            <div id="pending-exchanges" class="space-y-3">
+                                <!-- Trocas pendentes serão carregadas aqui -->
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async initialize() {
+                await this.loadDashboardData();
+            }
+
+            async loadDashboardData() {
+                try {
+                    ui.showLoading();
+
+                    // Carregar plantões do médico
+                    const plantoesResult = await api.listarPlantoesMedico();
+                    
+                    // Carregar trocas pendentes
+                    const trocasResult = await api.listarTrocasPendentes();
+
+                    if (plantoesResult.success) {
+                        this.renderStatsCards(plantoesResult.plantoes);
+                        this.renderUpcomingShifts(plantoesResult.plantoes);
+                    }
+
+                    if (trocasResult.success && trocasResult.trocas.length > 0) {
+                        this.renderPendingExchanges(trocasResult.trocas);
+                    }
+
+                } catch (error) {
+                    console.error('Erro ao carregar dashboard:', error);
+                    ui.showNotification('Erro ao carregar dados do dashboard', 'error');
+                } finally {
+                    ui.hideLoading();
+                }
+            }
+
+            renderStatsCards(plantoes) {
+                const now = new Date();
+                const thisMonth = plantoes.filter(p => {
+                    const plantaoDate = new Date(p.data);
+                    return plantaoDate.getMonth() === now.getMonth() && plantaoDate.getFullYear() === now.getFullYear();
+                });
+
+                const totalHoras = plantoes.reduce((acc, p) => {
+                    let horas = p.horaFim - p.horaInicio;
+                    if (p.horaFim === 0 || p.horaFim === 24) horas = 24 - p.horaInicio;
+                    return acc + horas;
+                }, 0);
+
+                const proximosPlantoes = plantoes.filter(p => new Date(p.data) > now).length;
+
+                const cards = [
+                    {
+                        title: 'Plantões Este Mês',
+                        value: thisMonth.length,
+                        icon: 'fas fa-calendar-check',
+                        color: 'blue'
+                    },
+                    {
+                        title: 'Total de Horas',
+                        value: totalHoras + 'h',
+                        icon: 'fas fa-clock',
+                        color: 'green'
+                    },
+                    {
+                        title: 'Próximos Plantões',
+                        value: proximosPlantoes,
+                        icon: 'fas fa-calendar-alt',
+                        color: 'purple'
+                    },
+                    {
+                        title: 'Status',
+                        value: 'Ativo',
+                        icon: 'fas fa-check-circle',
+                        color: 'green'
+                    }
+                ];
+
+                const cardsHtml = cards.map(card => `
+                    <div class="bg-white rounded-lg shadow-sm p-6 border-l-4 border-${card.color}-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600">${card.title}</p>
+                                <p class="text-2xl font-bold text-gray-800">${card.value}</p>
+                            </div>
+                            <div class="text-3xl text-${card.color}-500">
+                                <i class="${card.icon}"></i>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                document.getElementById('stats-cards').innerHTML = cardsHtml;
+            }
+
+            renderUpcomingShifts(plantoes) {
+                const now = new Date();
+                const upcoming = plantoes
+                    .filter(p => new Date(p.data) > now)
+                    .sort((a, b) => new Date(a.data) - new Date(b.data))
+                    .slice(0, 5);
+
+                if (upcoming.length === 0) {
+                    document.getElementById('upcoming-shifts').innerHTML = `
+                        <p class="text-gray-500 text-center py-4">Nenhum plantão agendado</p>
+                    `;
+                    return;
+                }
+
+                const shiftsHtml = upcoming.map(plantao => `
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center space-x-4">
+                            <div class="text-blue-500">
+                                <i class="fas fa-calendar-day text-lg"></i>
+                            </div>
+                            <div>
+                                <p class="font-semibold">${this.formatDate(plantao.data)}</p>
+                                <p class="text-sm text-gray-600">${this.formatTime(plantao.horaInicio)} - ${this.formatTime(plantao.horaFim)}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                ${plantao.status}
+                            </span>
+                        </div>
+                    </div>
+                `).join('');
+
+                document.getElementById('upcoming-shifts').innerHTML = shiftsHtml;
+            }
+
+            renderPendingExchanges(trocas) {
+                const section = document.getElementById('pending-exchanges-section');
+                const container = document.getElementById('pending-exchanges');
+
+                const exchangesHtml = trocas.map(troca => `
+                    <div class="flex items-center justify-between p-4 bg-orange-50 rounded-lg border border-orange-200">
+                        <div class="flex items-center space-x-4">
+                            <div class="text-orange-500">
+                                <i class="fas fa-exchange-alt text-lg"></i>
+                            </div>
+                            <div>
+                                <p class="font-semibold">Troca solicitada por ${troca.solicitanteNome}</p>
+                                <p class="text-sm text-gray-600">
+                                    ${this.formatDate(troca.dataPlantao)} - ${this.formatTime(troca.horaInicio)} às ${this.formatTime(troca.horaFim)}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button class="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors"
+                                    onclick="app.handleExchangeResponse('${troca.id}', true)">
+                                Aceitar
+                            </button>
+                            <button class="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors"
+                                    onclick="app.handleExchangeResponse('${troca.id}', false)">
+                                Recusar
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+
+                container.innerHTML = exchangesHtml;
+                section.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * PÁGINA MEUS PLANTÕES
+         */
+        class MySchedulePage extends BasePage {
+            constructor() {
+                super('Meus Plantões');
+            }
+
+            async render() {
+                return `
+                    <div class="space-y-6">
+                        <!-- Filtros -->
+                        <div class="bg-white rounded-lg shadow-sm p-6">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                                <h3 class="text-lg font-semibold">Filtrar Plantões</h3>
+                                <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Data Início</label>
+                                        <input type="date" id="filter-start-date" class="border border-gray-300 rounded-lg px-3 py-2">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Data Fim</label>
+                                        <input type="date" id="filter-end-date" class="border border-gray-300 rounded-lg px-3 py-2">
+                                    </div>
+                                    <div class="flex items-end">
+                                        <button id="apply-filter" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                                            Filtrar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Lista de plantões -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="px-6 py-4 border-b">
+                                <h3 class="text-lg font-semibold">Meus Plantões</h3>
+                            </div>
+                            <div id="schedule-list" class="divide-y divide-gray-200">
+                                <!-- Lista será carregada aqui -->
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async initialize() {
+                // Definir datas padrão (mês atual)
+                const now = new Date();
+                const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+                document.getElementById('filter-start-date').value = firstDay.toISOString().split('T')[0];
+                document.getElementById('filter-end-date').value = lastDay.toISOString().split('T')[0];
+
+                // Event listeners
+                document.getElementById('apply-filter').addEventListener('click', () => {
+                    this.loadSchedule();
+                });
+
+                // Carregar plantões iniciais
+                await this.loadSchedule();
+            }
+
+            async loadSchedule() {
+                try {
+                    ui.showLoading();
+                    const result = await api.listarPlantoesMedico();
+
+                    if (result.success) {
+                        this.renderSchedule(result.plantoes);
+                    } else {
+                        ui.showNotification('Erro ao carregar plantões: ' + result.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Erro ao carregar plantões:', error);
+                    ui.showNotification('Erro de conexão', 'error');
+                } finally {
+                    ui.hideLoading();
+                }
+            }
+
+            renderSchedule(plantoes) {
+                const startDate = document.getElementById('filter-start-date').value;
+                const endDate = document.getElementById('filter-end-date').value;
+
+                let filteredPlantoes = plantoes;
+
+                if (startDate && endDate) {
+                    const start = new Date(startDate);
+                    const end = new Date(endDate);
+                    
+                    filteredPlantoes = plantoes.filter(p => {
+                        const plantaoDate = new Date(p.data);
+                        return plantaoDate >= start && plantaoDate <= end;
+                    });
+                }
+
+                if (filteredPlantoes.length === 0) {
+                    document.getElementById('schedule-list').innerHTML = `
+                        <div class="p-6 text-center text-gray-500">
+                            Nenhum plantão encontrado no período selecionado
+                        </div>
+                    `;
+                    return;
+                }
+
+                const now = new Date();
+                const scheduleHtml = filteredPlantoes
+                    .sort((a, b) => new Date(a.data) - new Date(b.data))
+                    .map(plantao => {
+                        const plantaoDate = new Date(plantao.data);
+                        const isPast = plantaoDate < now;
+                        const canRequestExchange = !isPast && plantao.status === 'alocado';
+
+                        return `
+                            <div class="p-6 ${isPast ? 'bg-gray-50' : 'bg-white'}">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-4">
+                                        <div class="text-2xl ${isPast ? 'text-gray-400' : 'text-blue-500'}">
+                                            <i class="fas fa-calendar-day"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-lg ${isPast ? 'text-gray-600' : 'text-gray-800'}">
+                                                ${this.formatDate(plantao.data)}
+                                            </h4>
+                                            <p class="text-gray-600">
+                                                ${this.formatTime(plantao.horaInicio)} - ${this.formatTime(plantao.horaFim)}
+                                                ${this.getShiftDuration(plantao.horaInicio, plantao.horaFim)}
+                                            </p>
+                                            ${plantao.observacoes ? `<p class="text-sm text-gray-500 mt-1">${plantao.observacoes}</p>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${this.getStatusColor(plantao.status)}">
+                                            ${plantao.status}
+                                        </span>
+                                        ${canRequestExchange ? `
+                                            <button class="text-blue-500 hover:text-blue-700 transition-colors"
+                                                    onclick="app.requestShiftExchange('${plantao.id}')"
+                                                    title="Solicitar troca">
+                                                <i class="fas fa-exchange-alt"></i>
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                document.getElementById('schedule-list').innerHTML = scheduleHtml;
+            }
+
+            getShiftDuration(start, end) {
+                let duration = end - start;
+                if (end === 0 || end === 24) duration = 24 - start;
+                return `(${duration}h)`;
+            }
+
+            getStatusColor(status) {
+                const colors = {
+                    'alocado': 'bg-green-100 text-green-800',
+                    'disponivel': 'bg-gray-100 text-gray-800',
+                    'pendente': 'bg-yellow-100 text-yellow-800'
+                };
+                return colors[status] || 'bg-gray-100 text-gray-800';
+            }
+        }
+
+        /**
+         * PÁGINA DE TROCAS
+         */
+        class ExchangesPage extends BasePage {
+            constructor() {
+                super('Trocas de Plantão');
+            }
+
+            async render() {
+                return `
+                    <div class="space-y-6">
+                        <!-- Trocas Pendentes -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="px-6 py-4 border-b">
+                                <h3 class="text-lg font-semibold text-orange-600">
+                                    <i class="fas fa-clock mr-2"></i>
+                                    Trocas Pendentes para Aprovação
+                                </h3>
+                            </div>
+                            <div id="pending-exchanges" class="divide-y divide-gray-200">
+                                <!-- Trocas pendentes -->
+                            </div>
+                        </div>
+
+                        <!-- Histórico de Trocas -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="px-6 py-4 border-b">
+                                <h3 class="text-lg font-semibold">
+                                    <i class="fas fa-history mr-2"></i>
+                                    Histórico de Trocas
+                                </h3>
+                            </div>
+                            <div id="exchange-history" class="divide-y divide-gray-200">
+                                <!-- Histórico será carregado aqui -->
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async initialize() {
+                await this.loadExchanges();
+            }
+
+            async loadExchanges() {
+                try {
+                    ui.showLoading();
+                    const result = await api.listarTrocasPendentes();
+
+                    if (result.success) {
+                        this.renderPendingExchanges(result.trocas);
+                    } else {
+                        ui.showNotification('Erro ao carregar trocas: ' + result.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Erro ao carregar trocas:', error);
+                    ui.showNotification('Erro de conexão', 'error');
+                } finally {
+                    ui.hideLoading();
+                }
+            }
+
+            renderPendingExchanges(trocas) {
+                const container = document.getElementById('pending-exchanges');
+
+                if (trocas.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-6 text-center text-gray-500">
+                            <i class="fas fa-check-circle text-4xl mb-4"></i>
+                            <p>Nenhuma troca pendente</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const exchangesHtml = trocas.map(troca => `
+                    <div class="p-6">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-start space-x-4">
+                                <div class="text-orange-500 mt-1">
+                                    <i class="fas fa-exchange-alt text-xl"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-lg">Solicitação de ${troca.solicitanteNome}</h4>
+                                    <div class="mt-2 space-y-1">
+                                        <p class="text-gray-600">
+                                            <i class="fas fa-calendar mr-2"></i>
+                                            ${this.formatDate(troca.dataPlantao)} - ${this.formatTime(troca.horaInicio)} às ${this.formatTime(troca.horaFim)}
+                                        </p>
+                                        <p class="text-gray-600">
+                                            <i class="fas fa-clock mr-2"></i>
+                                            Solicitado em ${this.formatDate(troca.dataSolicitacao)}
+                                        </p>
+                                        ${troca.observacoes ? `
+                                            <p class="text-gray-600">
+                                                <i class="fas fa-comment mr-2"></i>
+                                                ${troca.observacoes}
+                                            </p>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                                        onclick="app.handleExchangeResponse('${troca.id}', true)">
+                                    <i class="fas fa-check mr-1"></i>
+                                    Aceitar
+                                </button>
+                                <button class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                        onclick="app.handleExchangeResponse('${troca.id}', false)">
+                                    <i class="fas fa-times mr-1"></i>
+                                    Recusar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                container.innerHTML = exchangesHtml;
+            }
+        }
+
+        /**
+         * PÁGINA GERENCIAR MÉDICOS (Admin)
+         */
+        class ManageDoctorsPage extends BasePage {
+            constructor() {
+                super('Gerenciar Médicos');
+            }
+
+            async render() {
+                return `
+                    <div class="space-y-6">
+                        <!-- Formulário para novo médico -->
+                        <div class="bg-white rounded-lg shadow-sm p-6">
+                            <h3 class="text-lg font-semibold mb-4">
+                                <i class="fas fa-user-plus text-green-500 mr-2"></i>
+                                Cadastrar Novo Médico
+                            </h3>
+                            <form id="doctor-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
+                                    <input type="text" id="doctor-name" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                    <input type="email" id="doctor-email" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">CPF</label>
+                                    <input type="text" id="doctor-cpf" required maxlength="11" placeholder="Apenas números" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                </div>
+                                <div class="md:col-span-3">
+                                    <button type="submit" class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600 transition-colors">
+                                        <i class="fas fa-plus mr-2"></i>
+                                        Cadastrar Médico
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Lista de médicos -->
+                        <div class="bg-white rounded-lg shadow-sm">
+                            <div class="px-6 py-4 border-b">
+                                <h3 class="text-lg font-semibold">
+                                    <i class="fas fa-users mr-2"></i>
+                                    Médicos Cadastrados
+                                </h3>
+                            </div>
+                            <div id="doctors-list" class="divide-y divide-gray-200">
+                                <!-- Lista será carregada aqui -->
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async initialize() {
+                // Event listeners
+                document.getElementById('doctor-form').addEventListener('submit', this.handleDoctorSubmit.bind(this));
+                
+                // Máscara para CPF
+                document.getElementById('doctor-cpf').addEventListener('input', (e) => {
+                    e.target.value = e.target.value.replace(/\D/g, '');
+                });
+
+                await this.loadDoctors();
+            }
+
+            async handleDoctorSubmit(e) {
+                e.preventDefault();
+
+                const medicoData = {
+                    nome: document.getElementById('doctor-name').value.trim(),
+                    email: document.getElementById('doctor-email').value.trim(),
+                    cpf: document.getElementById('doctor-cpf').value.trim()
+                };
+
+                // Validações
+                if (!medicoData.nome || !medicoData.email || !medicoData.cpf) {
+                    ui.showNotification('Preencha todos os campos', 'error');
+                    return;
+                }
+
+                if (medicoData.cpf.length !== 11) {
+                    ui.showNotification('CPF deve ter 11 dígitos', 'error');
+                    return;
+                }
+
+                try {
+                    ui.showLoading();
+                    const result = await api.cadastrarMedico(medicoData);
+
+                    if (result.success) {
+                        ui.showNotification('Médico cadastrado com sucesso!', 'success');
+                        document.getElementById('doctor-form').reset();
+                        await this.loadDoctors();
+                    } else {
+                        ui.showNotification('Erro ao cadastrar: ' + result.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Erro ao cadastrar médico:', error);
+                    ui.showNotification('Erro de conexão', 'error');
+                } finally {
+                    ui.hideLoading();
+                }
+            }
+
+            async loadDoctors() {
+                try {
+                    const result = await api.listarMedicos();
+
+                    if (result.success) {
+                        this.renderDoctors(result.medicos);
+                    } else {
+                        ui.showNotification('Erro ao carregar médicos: ' + result.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('Erro ao carregar médicos:', error);
+                    ui.showNotification('Erro de conexão', 'error');
+                }
+            }
+
+            renderDoctors(medicos) {
+                if (medicos.length === 0) {
+                    document.getElementById('doctors-list').innerHTML = `
+                        <div class="p-6 text-center text-gray-500">
+                            Nenhum médico cadastrado
+                        </div>
+                    `;
+                    return;
+                }
+
+                const doctorsHtml = medicos.map(medico => `
+                    <div class="p-6">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <div class="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                                    ${medico.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-lg">${medico.nome}</h4>
+                                    <p class="text-gray-600">${medico.email}</p>
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button class="text-blue-500 hover:text-blue-700 transition-colors"
+                                        onclick="app.viewDoctorSchedule('${medico.id}')"
+                                        title="Ver plantões">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </button>
+                                <button class="text-green-500 hover:text-green-700 transition-colors"
+                                        onclick="app.assignShift('${medico.id}')"
+                                        title="Atribuir plantão">
+                                    <i class="fas fa-plus-circle"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                document.getElementById('doctors-list').innerHTML = doctorsHtml;
+            }
+        }
+
+        /**
+         * APLICAÇÃO PRINCIPAL
+         * Controlador principal da aplicação
+         */
+        class MedicalScheduleApp {
+            constructor() {
+                // Inicializar componentes
+                window.appState = new AppState();
+                window.api = new ApiService();
+                window.ui = new UIManager();
+                window.pageManager = new PageManager();
+                
+                // Expor referências globais para facilitar acesso
+                window.app = this;
+            }
+
+            // Inicialização da aplicação
+            async init() {
+                try {
+                    // Verificar se há sessão salva
+                    if (appState.loadFromStorage()) {
+                        // Validar sessão no servidor
+                        const validation = await api.validateSession();
+                        
+                        if (validation.success) {
+                            await this.startApp();
+                            return;
+                        } else {
+                            // Sessão inválida, limpar dados
+                            appState.clear();
+                        }
+                    }
+                    
+                    // Mostrar tela de login
+                    await this.showLogin();
+                    
+                } catch (error) {
+                    console.error('Erro na inicialização:', error);
+                    ui.showNotification('Erro ao inicializar aplicação', 'error');
+                }
+            }
+
+            // Iniciar aplicação após login
+            async startApp() {
+                // Atualizar UI com dados do usuário
+                ui.updateUserInfo(appState.currentUser);
+                ui.generateMenu(appState.currentUser.tipo);
+                
+                // Navegar para dashboard
+                await this.navigateToPage('dashboard');
+            }
+
+            // Mostrar página de login
+            async showLogin() {
+                document.body.innerHTML = await pageManager.pages.login.render();
+                pageManager.pages.login.initialize();
+            }
+
+            // Navegação entre páginas
+            async navigateToPage(page) {
+                appState.currentPage = page;
+                ui.setActivePage(page);
+                await pageManager.renderPage(page);
+            }
+
+            // Logout do sistema
+            async logout() {
+                try {
+                    await api.logout();
+                } catch (error) {
+                    console.error('Erro no logout:', error);
+                } finally {
+                    appState.clear();
+                    location.reload();
+                }
+            }
+
+            // Responder troca de plantão
+            async handleExchangeResponse(trocaId, aceitar) {
+                const action = aceitar ? 'aceitar' : 'recusar';
+                const message = `Tem certeza que deseja ${action} esta troca?`;
+                
+                ui.showConfirm(`${action.charAt(0).toUpperCase() + action.slice(1)} Troca`, message, async () => {
+                    try {
+                        ui.showLoading();
+                        const result = await api.responderTrocaPlantao(trocaId, aceitar);
+                        
+                        if (result.success) {
+                            ui.showNotification(`Troca ${aceitar ? 'aceita' : 'recusada'} com sucesso!`, 'success');
+                            
+                            // Recarregar página atual
+                            if (appState.currentPage === 'dashboard') {
+                                await pageManager.pages.dashboard.initialize();
+                            } else if (appState.currentPage === 'exchanges') {
+                                await pageManager.pages.exchanges.initialize();
+                            }
+                        } else {
+                            ui.showNotification('Erro: ' + result.error, 'error');
+                        }
+                    } catch (error) {
+                        console.error('Erro ao responder troca:', error);
+                        ui.showNotification('Erro de conexão', 'error');
+                    } finally {
+                        ui.hideLoading();
+                    }
+                });
+            }
+
+            // Solicitar troca de plantão
+            async requestShiftExchange(plantaoId) {
+                // Implementar modal para seleção de médico substituto
+                // Por simplicidade, vou criar um prompt básico
+                try {
+                    ui.showLoading();
+                    const medicosResult = await api.listarMedicos();
+                    
+                    if (!medicosResult.success) {
+                        ui.showNotification('Erro ao carregar médicos', 'error');
+                        return;
+                    }
+
+                    // Filtrar médicos (excluir o próprio usuário)
+                    const medicos = medicosResult.medicos.filter(m => m.id !== appState.currentUser.userId);
+                    
+                    if (medicos.length === 0) {
+                        ui.showNotification('Não há médicos disponíveis para troca', 'warning');
+                        return;
+                    }
+
+                    // Criar modal de seleção (implementação simplificada)
+                    this.showDoctorSelectionModal(medicos, plantaoId);
+
+                } catch (error) {
+                    console.error('Erro ao solicitar troca:', error);
+                    ui.showNotification('Erro de conexão', 'error');
+                } finally {
+                    ui.hideLoading();
+                }
+            }
+
+            // Modal de seleção de médico para troca
+            showDoctorSelectionModal(medicos, plantaoId) {
+                const modalHtml = `
+                    <div id="doctor-selection-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                            <h3 class="text-lg font-semibold mb-4">Selecionar Médico para Troca</h3>
+                            <div class="space-y-3 max-h-60 overflow-y-auto">
+                                ${medicos.map(medico => `
+                                    <button class="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                            onclick="app.confirmExchangeRequest('${plantaoId}', '${medico.id}')">
+                                        <div class="font-medium">${medico.nome}</div>
+                                        <div class="text-sm text-gray-600">${medico.email}</div>
+                                    </button>
+                                `).join('')}
+                            </div>
+                            <div class="flex justify-end mt-6">
+                                <button onclick="app.closeDoctorSelectionModal()" 
+                                        class="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
