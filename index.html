@@ -125,10 +125,20 @@
                 return await response.json();
             }
 
-            async post(data) {
-                if (window.appState.token) {
-                    data.token = window.appState.token;
-                }
+async post(data) {
+    // Remove a adição automática do token aqui, será feita caso a caso
+    const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+}
 
                 const response = await fetch(this.baseUrl, {
                     method: 'POST',
@@ -139,9 +149,21 @@
                 return await response.json();
             }
 
-            async login(email, cpf) {
-                return await this.post({ action: 'login', email: email, cpf: cpf });
-            }
+async login(email, cpf) {
+    const data = { 
+        action: 'login', 
+        email: email, 
+        cpf: cpf 
+    };
+    
+    const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+
+    return await response.json();
+}
 
             async logout() {
                 return await this.post({ action: 'logout' });
@@ -351,16 +373,41 @@
                 });
             }
 
-            async handleLogin() {
-                const email = document.getElementById('login-email').value;
-                const cpf = document.getElementById('login-cpf').value;
-                const errorDiv = document.getElementById('login-error');
+async handleLogin() {
+    const email = document.getElementById('login-email').value;
+    const cpf = document.getElementById('login-cpf').value;
+    const errorDiv = document.getElementById('login-error');
 
-                if (!email || !cpf || cpf.length !== 11) {
-                    errorDiv.textContent = 'Preencha todos os campos corretamente';
-                    errorDiv.classList.remove('hidden');
-                    return;
-                }
+    if (!email || !cpf || cpf.length !== 11) {
+        errorDiv.textContent = 'Preencha todos os campos corretamente';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        Utils.showLoading();
+        console.log('Tentando login com:', { email, cpf: cpf.substring(0,3) + '...' });
+        
+        const result = await api.login(email, cpf);
+        console.log('Resultado do login:', result);
+
+        if (result.success) {
+            window.appState.token = result.token;
+            window.appState.currentUser = result.user;
+            window.appState.saveToStorage();
+            this.showMainApp();
+        } else {
+            errorDiv.textContent = result.message || 'Erro no login';
+            errorDiv.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Erro completo no login:', error);
+        errorDiv.textContent = 'Erro de conexão. Tente novamente.';
+        errorDiv.classList.remove('hidden');
+    } finally {
+        Utils.hideLoading();
+    }
+}
 
 } catch (error) {
     console.error('Erro detalhado:', error);
