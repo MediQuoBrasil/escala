@@ -258,52 +258,46 @@
          * @param {object} payload - Os dados a serem enviados para o backend.
          * @returns {Promise<object>} - A resposta do backend.
          */
-        async function callApi(action, payload = {}) {
-            showLoading();
-            // Log de diagnóstico no console do navegador para garantir que a função está sendo chamada.
-            console.log(`%c[API Request] -> Action: ${action}`, 'color: blue; font-weight: bold;', payload);
-            try {
-                // Monta o corpo da requisição
-                const requestBody = {
-                    action: action,
-                    payload: payload
-                };
+async function callApi(action, payload = {}) {
+    showLoading();
+    console.log(`%c[API Request] -> Action: ${action}`, 'color: blue; font-weight: bold;', payload);
+    try {
+        const requestBody = {
+            action: action,
+            payload: payload
+        };
 
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'cors', // Garante que estamos fazendo uma requisição CORS explícita.
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody),
-                    redirect: 'follow' // Essencial para o funcionamento com o GAS
-                });
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            redirect: 'follow', // Crítico para o Google Apps Script
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8', // Evita preflight request
+            },
+            body: JSON.stringify(requestBody)
+        });
 
-                if (!response.ok) {
-                    // Tenta ler o corpo do erro se houver
-                    const errorBody = await response.text();
-                    console.error('Erro na resposta da rede:', response.status, errorBody);
-                    throw new Error(`Erro na comunicação com o servidor. Status: ${response.status}`);
-                }
-
-                const result = await response.json();
-
-                if (result.status === 'error') {
-                    throw new Error(result.message || 'Ocorreu um erro desconhecido no servidor.');
-                }
-                
-                return result.data;
-
-            } catch (error) {
-                console.error(`Falha na API para a ação "${action}":`, error);
-                // Exibe o erro para o usuário de forma amigável
-                showMessageModal('Erro', error.message);
-                // Re-lança o erro para que a função chamadora possa tratá-lo se necessário
-                throw error;
-            } finally {
-                hideLoading();
-            }
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error('Erro na resposta da rede:', response.status, errorBody);
+            throw new Error(`Erro na comunicação com o servidor. Status: ${response.status}`);
         }
+
+        const result = await response.json();
+
+        if (result.status === 'error') {
+            throw new Error(result.message || 'Ocorreu um erro desconhecido no servidor.');
+        }
+        
+        return result.data;
+
+    } catch (error) {
+        console.error(`Falha na API para a ação "${action}":`, error);
+        showMessageModal('Erro', error.message);
+        throw error;
+    } finally {
+        hideLoading();
+    }
+}
         
         // ===================================================================================
         // ||                          FUNÇÕES DE UI (Componentes e Modais)                   ||
