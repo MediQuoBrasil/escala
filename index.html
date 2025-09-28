@@ -1,633 +1,660 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Escala Médica</title>
-    <link href="https://cdn.tailwindcss.com" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Tailwind CSS para prototipagem rápida e design responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        .loader { 
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3b82f6;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
+        /* Estilos personalizados e tema roxo */
+        :root {
+            --cor-primaria: #4A1EA7;
+            --cor-primaria-hover: #3c1885;
+            --cor-fundo: #f4f5f7;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--cor-fundo);
         }
-        .fade-in { 
-            animation: fadeIn 0.3s ease-in-out; 
+
+        /* Estilo para botões principais */
+        .btn-primario {
+            background-color: var(--cor-primaria);
+            color: white;
+            transition: background-color 0.3s ease;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+
+        .btn-primario:hover {
+            background-color: var(--cor-primaria-hover);
+        }
+
+        /* Classes auxiliares para mostrar/esconder views */
+        .hidden {
+            display: none;
+        }
+
+        /* Estilo para o calendário */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .calendar-day {
+            min-height: 120px;
+        }
+
+        /* Estilo para modais */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
-<body class="bg-gray-100">
-    
-    <!-- Container principal da aplicação -->
-    <div id="app-root"></div>
 
-    <!-- Modal de loading -->
-    <div id="loading-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-        <div class="bg-white rounded-lg p-6 flex items-center space-x-4">
-            <div class="loader"></div>
-            <span>Carregando...</span>
+<body class="bg-gray-100">
+
+    <!-- Container Principal da Aplicação -->
+    <div id="app-container" class="container mx-auto p-4 max-w-7xl">
+
+        <!-- ===== TELA DE LOGIN ===== -->
+        <div id="login-view">
+            <div class="max-w-md mx-auto mt-20 bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+                <h1 class="text-3xl font-bold text-center mb-2" style="color: var(--cor-primaria);">Sistema de Escala</h1>
+                <p class="text-center text-gray-500 mb-8">Faça login para continuar</p>
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                        <input type="email" id="email" required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-300 focus:border-purple-500 transition">
+                    </div>
+                    <div class="mb-6">
+                        <label for="cpf" class="block text-sm font-medium text-gray-700 mb-1">CPF (somente números)</label>
+                        <input type="password" id="cpf" required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-300 focus:border-purple-500 transition">
+                    </div>
+                    <button type="submit"
+                        class="w-full btn-primario font-bold py-3 px-4 rounded-lg focus:outline-none focus:shadow-outline">
+                        Entrar
+                    </button>
+                    <p id="login-error" class="text-red-500 text-sm mt-4 text-center"></p>
+                </form>
+            </div>
+        </div>
+
+        <!-- ===== VIEW DO ADMINISTRADOR (MASTER) ===== -->
+        <div id="master-view" class="hidden">
+            <!-- Cabeçalho -->
+            <header class="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-md">
+                <div>
+                    <h1 class="text-2xl font-bold" style="color: var(--cor-primaria);">Painel do Administrador</h1>
+                    <p id="master-welcome" class="text-gray-600">Bem-vindo(a)!</p>
+                </div>
+                <button id="logout-btn-master"
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition">
+                    Sair
+                </button>
+            </header>
+
+            <!-- Controles do Calendário -->
+            <div class="flex justify-between items-center mb-4 bg-white p-4 rounded-xl shadow-md">
+                <button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-200 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <h2 id="calendar-header" class="text-xl font-semibold"></h2>
+                <button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-200 transition">
+                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+                <button id="add-shift-btn" class="ml-auto btn-primario font-semibold py-2 px-4 rounded-lg">
+                    Adicionar Plantão
+                </button>
+            </div>
+
+            <!-- Calendário -->
+            <div class="bg-white p-4 rounded-xl shadow-md">
+                <div class="calendar-grid mb-2 text-center font-semibold text-gray-600">
+                    <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+                </div>
+                <div id="calendar-body" class="calendar-grid"></div>
+            </div>
+        </div>
+
+
+        <!-- ===== VIEW DO MÉDICO ===== -->
+        <div id="doctor-view" class="hidden">
+             <!-- Cabeçalho -->
+            <header class="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-md">
+                <div>
+                    <h1 class="text-2xl font-bold" style="color: var(--cor-primaria);">Meu Painel</h1>
+                    <p id="doctor-welcome" class="text-gray-600"></p>
+                </div>
+                <button id="logout-btn-doctor"
+                    class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition">
+                    Sair
+                </button>
+            </header>
+
+            <!-- Lista de Plantões -->
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Meus Próximos Plantões</h2>
+                <div id="doctor-shifts" class="space-y-4">
+                    <!-- Plantões serão inseridos aqui -->
+                </div>
+                 <h2 class="text-xl font-semibold mt-8 mb-4">Pedidos de Troca Pendentes</h2>
+                <div id="doctor-trade-requests" class="space-y-4">
+                    <!-- Pedidos de troca para aprovação -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ===== MODAIS ===== -->
+
+    <!-- Modal de Loading -->
+    <div id="loading-modal"
+        class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-white"></div>
+    </div>
+
+    <!-- Modal Genérico para Mensagens -->
+    <div id="message-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-40">
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full text-center">
+            <h3 id="message-modal-title" class="text-lg font-semibold mb-4"></h3>
+            <p id="message-modal-text"></p>
+            <button onclick="hideMessageModal()" class="mt-6 btn-primario py-2 px-6 rounded-lg">OK</button>
         </div>
     </div>
 
+    <!-- Modal para Adicionar/Editar Plantão (Master) -->
+    <div id="shift-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-40">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-lg w-full">
+            <h2 id="shift-modal-title" class="text-2xl font-bold mb-6" style="color: var(--cor-primaria);">Adicionar Plantão</h2>
+            <form id="shift-form">
+                <input type="hidden" id="shift-id">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="shift-date" class="block text-sm font-medium text-gray-700">Data</label>
+                        <input type="date" id="shift-date" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                    </div>
+                    <div>
+                        <label for="shift-time" class="block text-sm font-medium text-gray-700">Horário</label>
+                        <select id="shift-time" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                            <option value="07-19">07:00 - 19:00</option>
+                            <option value="19-00">19:00 - 00:00</option>
+                            <option value="00-07">00:00 - 07:00</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700">Médico(s) no Plantão</label>
+                    <div id="doctor-selectors" class="mt-2 space-y-2">
+                        <!-- Selects de médicos serão adicionados dinamicamente aqui -->
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-4">
+                    <button type="button" onclick="hideShiftModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button type="submit" class="btn-primario font-bold py-2 px-4 rounded-lg">Salvar Plantão</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+     <!-- Modal para Troca de Plantão (Médico) -->
+    <div id="trade-modal" class="hidden fixed inset-0 modal-backdrop flex items-center justify-center z-40">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-lg w-full">
+            <h2 class="text-2xl font-bold mb-6" style="color: var(--cor-primaria);">Solicitar Troca</h2>
+            <form id="trade-form">
+                <input type="hidden" id="trade-shift-id">
+                <p class="mb-4">Você está solicitando a troca do plantão do dia <strong id="trade-shift-details"></strong>.</p>
+                <div>
+                    <label for="trade-doctor-select" class="block text-sm font-medium text-gray-700">
+                        Trocar com o(a) colega:
+                    </label>
+                    <select id="trade-doctor-select" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        <!-- Opções de médicos serão preenchidas aqui -->
+                    </select>
+                </div>
+                <div class="mt-6 flex justify-end space-x-4">
+                    <button type="button" onclick="hideTradeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                    <button type="submit" class="btn-primario font-bold py-2 px-4 rounded-lg">Enviar Pedido</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
     <script>
-        /**
-         * CONFIGURAÇÃO GLOBAL
-         */
-        const CONFIG = {
-            API_URL: 'https://script.google.com/macros/s/AKfycbxYZPxWIxhMzyAdwUG3txUCrZa8TctTf5kS_Qj63B2KuGgpJH0WWUXMw4kql3_N-gQF0g/exec',
-            APP_NAME: 'Sistema de Escala Médica',
-            STORAGE_KEYS: {
-                TOKEN: 'medical_schedule_token',
-                USER: 'medical_schedule_user'
-            }
+        // ===================================================================================
+        // ||                           CONFIGURAÇÃO E ESTADO DA APLICAÇÃO                   ||
+        // ===================================================================================
+        
+        // URL do Web App implantado no Google Apps Script. 
+        // SUBSTITUIR PELA URL REAL APÓS A IMPLANTAÇÃO.
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbydQqxx1_I00-PyyWIlqaLihm8ZbV4sQ1jGgZTzyzigh2xwqpRUXVQbcglSAtefuTG9zQ/exec';
+
+        // Objeto para manter o estado da aplicação
+        const appState = {
+            currentUser: null, // { name, email, role }
+            currentDate: new Date(),
+            schedule: {}, // { 'YYYY-MM-DD': [shift1, shift2] }
+            doctors: [] // [ { name, email } ]
         };
 
-        /**
-         * GERENCIAMENTO DE ESTADO
-         */
-        class AppState {
-            constructor() {
-                this.currentUser = null;
-                this.token = null;
-                this.currentPage = 'login';
-            }
-
-            loadFromStorage() {
-                const token = localStorage.getItem(CONFIG.STORAGE_KEYS.TOKEN);
-                const userData = localStorage.getItem(CONFIG.STORAGE_KEYS.USER);
-                
-                if (token && userData) {
-                    this.token = token;
-                    this.currentUser = JSON.parse(userData);
-                    return true;
-                }
-                return false;
-            }
-
-            saveToStorage() {
-                if (this.token && this.currentUser) {
-                    localStorage.setItem(CONFIG.STORAGE_KEYS.TOKEN, this.token);
-                    localStorage.setItem(CONFIG.STORAGE_KEYS.USER, JSON.stringify(this.currentUser));
-                }
-            }
-
-            clear() {
-                this.currentUser = null;
-                this.token = null;
-                localStorage.removeItem(CONFIG.STORAGE_KEYS.TOKEN);
-                localStorage.removeItem(CONFIG.STORAGE_KEYS.USER);
-            }
-
-            isLoggedIn() {
-                return this.token && this.currentUser;
-            }
-
-            isAdmin() {
-                return this.currentUser && this.currentUser.tipo === 'admin';
-            }
-        }
+        // ===================================================================================
+        // ||                          CLIENTE DE API (Comunicação com o GAS)                 ||
+        // ===================================================================================
 
         /**
-         * SERVIÇO DE API
+         * Função central para fazer chamadas ao backend no Google Apps Script.
+         * Lida com loading, erros e parsing da resposta.
+         * @param {string} action - A ação a ser executada no backend (ex: 'login', 'getSchedule').
+         * @param {object} payload - Os dados a serem enviados para o backend.
+         * @returns {Promise<object>} - A resposta do backend.
          */
-        class ApiService {
-            constructor() {
-                this.baseUrl = CONFIG.API_URL;
-            }
+        async function callApi(action, payload = {}) {
+            showLoading();
+            try {
+                // Monta o corpo da requisição
+                const requestBody = {
+                    action: action,
+                    payload: payload
+                };
 
-            async get(action, params = {}) {
-                const url = new URL(this.baseUrl);
-                url.searchParams.append('action', action);
-                
-                if (window.appState.token) {
-                    url.searchParams.append('token', window.appState.token);
-                }
-                
-                Object.keys(params).forEach(key => {
-                    if (params[key] !== null && params[key] !== undefined) {
-                        url.searchParams.append(key, params[key]);
-                    }
-                });
-
-                const response = await fetch(url);
-                return await response.json();
-            }
-
-async post(data) {
-    // Remove a adição automática do token aqui, será feita caso a caso
-    const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    return await response.json();
-}
-
-                const response = await fetch(this.baseUrl, {
+                const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    // mode: 'cors' é o padrão, não precisa especificar.
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody),
+                    redirect: 'follow' // Essencial para o funcionamento com o GAS
                 });
 
-                return await response.json();
-            }
-
-async login(email, cpf) {
-    const data = { 
-        action: 'login', 
-        email: email, 
-        cpf: cpf 
-    };
-    
-    const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-
-    return await response.json();
-}
-
-            async logout() {
-                return await this.post({ action: 'logout' });
-            }
-
-            async listarMedicos() {
-                return await this.get('listarMedicos');
-            }
-
-            async cadastrarMedico(medicoData) {
-                return await this.post({ action: 'cadastrarMedico', medicoData: medicoData });
-            }
-
-            async listarPlantoesMedico(medicoId) {
-                return await this.get('listarPlantoesMedico', { medicoId: medicoId });
-            }
-
-            async listarTrocasPendentes() {
-                return await this.get('listarTrocasPendentes');
-            }
-
-            async responderTrocaPlantao(trocaId, aceitar) {
-                return await this.post({ action: 'responderTrocaPlantao', trocaId: trocaId, aceitar: aceitar });
-            }
-
-            async solicitarTrocaPlantao(plantaoId, medicoSubstitutoId, observacoes) {
-                return await this.post({
-                    action: 'solicitarTrocaPlantao',
-                    plantaoId: plantaoId,
-                    medicoSubstitutoId: medicoSubstitutoId,
-                    observacoes: observacoes
-                });
-            }
-
-            async criarEscalaMensal(dataInicio, dataFim) {
-                return await this.post({
-                    action: 'criarEscalaMensal',
-                    dataInicio: dataInicio,
-                    dataFim: dataFim
-                });
-            }
-
-            async listarEscalaPeriodo(dataInicio, dataFim) {
-                return await this.get('listarEscalaPeriodo', {
-                    dataInicio: dataInicio,
-                    dataFim: dataFim
-                });
-            }
-
-            async atribuirPlantao(plantaoId, medicoId) {
-                return await this.post({
-                    action: 'atribuirPlantao',
-                    plantaoId: plantaoId,
-                    medicoId: medicoId
-                });
-            }
-
-            async gerarRelatorioHoras(dataInicio, dataFim) {
-                return await this.get('gerarRelatorioHoras', {
-                    dataInicio: dataInicio,
-                    dataFim: dataFim
-                });
-            }
-        }
-
-        /**
-         * UTILITÁRIOS
-         */
-        class Utils {
-            static showLoading() {
-                document.getElementById('loading-modal').classList.remove('hidden');
-            }
-
-            static hideLoading() {
-                document.getElementById('loading-modal').classList.add('hidden');
-            }
-
-            static showNotification(message, type = 'info') {
-                const colors = {
-                    success: 'bg-green-500',
-                    error: 'bg-red-500',
-                    warning: 'bg-yellow-500',
-                    info: 'bg-blue-500'
-                };
-
-                const notification = document.createElement('div');
-                notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-transform duration-300`;
-                notification.textContent = message;
-                notification.style.transform = 'translateX(400px)';
-
-                document.body.appendChild(notification);
-
-                setTimeout(() => {
-                    notification.style.transform = 'translateX(0)';
-                }, 100);
-
-                setTimeout(() => {
-                    notification.style.transform = 'translateX(400px)';
-                    setTimeout(() => {
-                        if (notification.parentNode) {
-                            document.body.removeChild(notification);
-                        }
-                    }, 300);
-                }, 5000);
-            }
-
-            static formatDate(date) {
-                return new Date(date).toLocaleDateString('pt-BR');
-            }
-
-            static formatTime(hour) {
-                return hour.toString().padStart(2, '0') + ':00';
-            }
-
-            static showConfirm(title, message, onConfirm) {
-                const modalHtml = `
-                    <div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                            <h3 class="text-lg font-semibold mb-4">${title}</h3>
-                            <p class="text-gray-600 mb-6">${message}</p>
-                            <div class="flex space-x-4 justify-end">
-                                <button id="confirm-cancel" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
-                                    Cancelar
-                                </button>
-                                <button id="confirm-ok" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-                                    Confirmar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-
-                document.body.insertAdjacentHTML('beforeend', modalHtml);
-                
-                document.getElementById('confirm-cancel').onclick = () => {
-                    document.getElementById('confirm-modal').remove();
-                };
-                
-                document.getElementById('confirm-ok').onclick = () => {
-                    document.getElementById('confirm-modal').remove();
-                    onConfirm();
-                };
-            }
-        }
-
-        /**
-         * APLICAÇÃO PRINCIPAL
-         */
-        class MedicalScheduleApp {
-            constructor() {
-                this.appRoot = document.getElementById('app-root');
-                window.appState = new AppState();
-                window.api = new ApiService();
-            }
-
-            async init() {
-                // Verificar se há sessão salva
-                if (window.appState.loadFromStorage()) {
-                    this.showMainApp();
-                } else {
-                    this.showLogin();
+                if (!response.ok) {
+                    // Tenta ler o corpo do erro se houver
+                    const errorBody = await response.text();
+                    console.error('Erro na resposta da rede:', response.status, errorBody);
+                    throw new Error(`Erro na comunicação com o servidor. Status: ${response.status}`);
                 }
+
+                const result = await response.json();
+
+                if (result.status === 'error') {
+                    throw new Error(result.message || 'Ocorreu um erro desconhecido no servidor.');
+                }
+                
+                return result.data;
+
+            } catch (error) {
+                console.error(`Falha na API para a ação "${action}":`, error);
+                // Exibe o erro para o usuário de forma amigável
+                showMessageModal('Erro', error.message);
+                // Re-lança o erro para que a função chamadora possa tratá-lo se necessário
+                throw error;
+            } finally {
+                hideLoading();
             }
-
-            showLogin() {
-                this.appRoot.innerHTML = `
-                    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
-                        <div class="max-w-md w-full bg-white rounded-lg shadow-xl p-8 mx-4">
-                            <div class="text-center mb-8">
-                                <i class="fas fa-hospital-alt text-4xl text-blue-600 mb-4"></i>
-                                <h1 class="text-2xl font-bold text-gray-800">${CONFIG.APP_NAME}</h1>
-                                <p class="text-gray-600 mt-2">Entre com suas credenciais</p>
-                            </div>
-
-                            <form id="login-form" class="space-y-4">
-                                <div>
-                                    <label class="block text-gray-700 text-sm font-bold mb-2">Email</label>
-                                    <input type="email" id="login-email" required 
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
-                                </div>
-
-                                <div>
-                                    <label class="block text-gray-700 text-sm font-bold mb-2">CPF (senha)</label>
-                                    <input type="text" id="login-cpf" required maxlength="11"
-                                           placeholder="Apenas números"
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500">
-                                </div>
-
-                                <button type="submit" 
-                                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-                                    Entrar
-                                </button>
-                            </form>
-
-                            <div id="login-error" class="mt-4 text-red-500 text-sm text-center hidden"></div>
-                        </div>
-                    </div>
-                `;
-
-                document.getElementById('login-cpf').addEventListener('input', (e) => {
-                    e.target.value = e.target.value.replace(/\D/g, '');
-                });
-
-                document.getElementById('login-form').addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    await this.handleLogin();
-                });
-            }
-
-async handleLogin() {
-    const email = document.getElementById('login-email').value;
-    const cpf = document.getElementById('login-cpf').value;
-    const errorDiv = document.getElementById('login-error');
-
-    if (!email || !cpf || cpf.length !== 11) {
-        errorDiv.textContent = 'Preencha todos os campos corretamente';
-        errorDiv.classList.remove('hidden');
-        return;
-    }
-
-    try {
-        Utils.showLoading();
-        console.log('Tentando login com:', { email, cpf: cpf.substring(0,3) + '...' });
+        }
         
-        const result = await api.login(email, cpf);
-        console.log('Resultado do login:', result);
+        // ===================================================================================
+        // ||                          FUNÇÕES DE UI (Componentes e Modais)                   ||
+        // ===================================================================================
 
-        if (result.success) {
-            window.appState.token = result.token;
-            window.appState.currentUser = result.user;
-            window.appState.saveToStorage();
-            this.showMainApp();
-        } else {
-            errorDiv.textContent = result.message || 'Erro no login';
-            errorDiv.classList.remove('hidden');
+        const showLoading = () => document.getElementById('loading-modal').classList.remove('hidden');
+        const hideLoading = () => document.getElementById('loading-modal').classList.add('hidden');
+
+        function showMessageModal(title, text) {
+            document.getElementById('message-modal-title').textContent = title;
+            document.getElementById('message-modal-text').textContent = text;
+            document.getElementById('message-modal').classList.remove('hidden');
         }
-    } catch (error) {
-        console.error('Erro completo no login:', error);
-        errorDiv.textContent = 'Erro de conexão. Tente novamente.';
-        errorDiv.classList.remove('hidden');
-    } finally {
-        Utils.hideLoading();
-    }
-}
-
-} catch (error) {
-    console.error('Erro detalhado:', error);
-    errorDiv.textContent = `Erro: ${error.message || 'Falha na conexão com o servidor'}`;
-    errorDiv.classList.remove('hidden');
-} finally {
-    Utils.hideLoading();
-}
-            }
-
-            showMainApp() {
-                const user = window.appState.currentUser;
-                const initials = user.nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-
-                this.appRoot.innerHTML = `
-                    <div class="min-h-screen bg-gray-100">
-                        <!-- Header -->
-                        <header class="bg-white shadow-sm border-b px-6 py-4">
-                            <div class="flex items-center justify-between">
-                                <h2 class="text-2xl font-semibold text-gray-800">
-                                    <i class="fas fa-hospital-alt text-blue-600 mr-2"></i>
-                                    ${CONFIG.APP_NAME}
-                                </h2>
-                                <div class="flex items-center space-x-4">
-                                    <div class="text-right">
-                                        <p class="text-sm text-gray-600">Bem-vindo(a),</p>
-                                        <p class="font-semibold text-gray-800">${user.nome}</p>
-                                    </div>
-                                    <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                                        ${initials}
-                                    </div>
-                                    <button id="logout-btn" class="text-red-500 hover:text-red-700">
-                                        <i class="fas fa-sign-out-alt"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </header>
-
-                        <!-- Menu e Conteúdo -->
-                        <div class="flex">
-                            <!-- Sidebar -->
-                            <aside class="w-64 bg-white shadow-sm min-h-screen p-4">
-                                <nav id="main-menu" class="space-y-2"></nav>
-                            </aside>
-
-                            <!-- Conteúdo -->
-                            <main id="main-content" class="flex-1 p-6"></main>
-                        </div>
-                    </div>
-                `;
-
-                this.renderMenu();
-                this.showDashboard();
-
-                document.getElementById('logout-btn').addEventListener('click', () => {
-                    Utils.showConfirm('Logout', 'Deseja realmente sair?', () => {
-                        window.appState.clear();
-                        this.init();
-                    });
-                });
-            }
-
-            renderMenu() {
-                const menuItems = [
-                    { icon: 'fas fa-home', text: 'Dashboard', action: () => this.showDashboard() },
-                    { icon: 'fas fa-calendar-alt', text: 'Meus Plantões', action: () => this.showMySchedule() }
-                ];
-
-                if (window.appState.isAdmin()) {
-                    menuItems.push(
-                        { icon: 'fas fa-users', text: 'Médicos', action: () => this.showManageDoctors() },
-                        { icon: 'fas fa-calendar-plus', text: 'Criar Escala', action: () => this.showCreateSchedule() }
-                    );
-                }
-
-                const menuHtml = menuItems.map(item => `
-                    <button class="menu-item w-full text-left px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors flex items-center space-x-3">
-                        <i class="${item.icon}"></i>
-                        <span>${item.text}</span>
-                    </button>
-                `).join('');
-
-                document.getElementById('main-menu').innerHTML = menuHtml;
-
-                const buttons = document.querySelectorAll('.menu-item');
-                buttons.forEach((btn, index) => {
-                    btn.addEventListener('click', menuItems[index].action);
-                });
-            }
-
-            showDashboard() {
-                document.getElementById('main-content').innerHTML = `
-                    <div class="bg-white rounded-lg shadow-sm p-6">
-                        <h3 class="text-xl font-semibold mb-4">Dashboard</h3>
-                        <p class="text-gray-600">Bem-vindo ao sistema de escala médica!</p>
-                        <div class="mt-4 p-4 bg-blue-50 rounded-lg">
-                            <p class="text-sm text-blue-800">
-                                <i class="fas fa-info-circle mr-2"></i>
-                                Use o menu lateral para navegar entre as funcionalidades.
-                            </p>
-                        </div>
-                    </div>
-                `;
-            }
-
-            showMySchedule() {
-                document.getElementById('main-content').innerHTML = `
-                    <div class="bg-white rounded-lg shadow-sm p-6">
-                        <h3 class="text-xl font-semibold mb-4">Meus Plantões</h3>
-                        <p class="text-gray-600">Lista de plantões será carregada aqui.</p>
-                    </div>
-                `;
-            }
-
-            showManageDoctors() {
-                document.getElementById('main-content').innerHTML = `
-                    <div class="space-y-6">
-                        <div class="bg-white rounded-lg shadow-sm p-6">
-                            <h3 class="text-lg font-semibold mb-4">Cadastrar Novo Médico</h3>
-                            <form id="doctor-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-                                    <input type="text" id="doctor-name" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                    <input type="email" id="doctor-email" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">CPF</label>
-                                    <input type="text" id="doctor-cpf" required maxlength="11" class="w-full border border-gray-300 rounded-lg px-3 py-2">
-                                </div>
-                                <div class="md:col-span-3">
-                                    <button type="submit" class="bg-green-500 text-white px-6 py-2 rounded-lg hover:bg-green-600">
-                                        Cadastrar
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                        <div id="doctors-list" class="bg-white rounded-lg shadow-sm p-6">
-                            <h3 class="text-lg font-semibold mb-4">Médicos Cadastrados</h3>
-                            <p class="text-gray-600">Carregando...</p>
-                        </div>
-                    </div>
-                `;
-
-                document.getElementById('doctor-cpf').addEventListener('input', (e) => {
-                    e.target.value = e.target.value.replace(/\D/g, '');
-                });
-
-                document.getElementById('doctor-form').addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    await this.handleDoctorSubmit();
-                });
-
-                this.loadDoctors();
-            }
-
-            async handleDoctorSubmit() {
-                const medicoData = {
-                    nome: document.getElementById('doctor-name').value.trim(),
-                    email: document.getElementById('doctor-email').value.trim(),
-                    cpf: document.getElementById('doctor-cpf').value.trim()
-                };
-
-                try {
-                    Utils.showLoading();
-                    const result = await api.cadastrarMedico(medicoData);
-
-                    if (result.success) {
-                        Utils.showNotification('Médico cadastrado com sucesso!', 'success');
-                        document.getElementById('doctor-form').reset();
-                        await this.loadDoctors();
-                    } else {
-                        Utils.showNotification('Erro: ' + result.error, 'error');
-                    }
-                } catch (error) {
-                    Utils.showNotification('Erro de conexão', 'error');
-                } finally {
-                    Utils.hideLoading();
-                }
-            }
-
-            async loadDoctors() {
-                try {
-                    const result = await api.listarMedicos();
-
-                    if (result.success) {
-                        const listHtml = result.medicos.map(medico => `
-                            <div class="p-4 border-b">
-                                <p class="font-semibold">${medico.nome}</p>
-                                <p class="text-sm text-gray-600">${medico.email}</p>
-                            </div>
-                        `).join('');
-
-                        document.getElementById('doctors-list').innerHTML = `
-                            <h3 class="text-lg font-semibold mb-4">Médicos Cadastrados</h3>
-                            ${listHtml || '<p class="text-gray-600">Nenhum médico cadastrado</p>'}
-                        `;
-                    }
-                } catch (error) {
-                    console.error('Erro ao carregar médicos:', error);
-                }
-            }
-
-            showCreateSchedule() {
-                document.getElementById('main-content').innerHTML = `
-                    <div class="bg-white rounded-lg shadow-sm p-6">
-                        <h3 class="text-xl font-semibold mb-4">Criar Escala</h3>
-                        <p class="text-gray-600">Funcionalidade em desenvolvimento.</p>
-                    </div>
-                `;
-            }
+        function hideMessageModal() {
+            document.getElementById('message-modal').classList.add('hidden');
+        }
+        
+        function showShiftModal() {
+             document.getElementById('shift-modal').classList.remove('hidden');
+        }
+        function hideShiftModal() {
+            document.getElementById('shift-form').reset();
+            document.getElementById('shift-id').value = '';
+            document.getElementById('doctor-selectors').innerHTML = '';
+            document.getElementById('shift-modal').classList.add('hidden');
         }
 
-        // Inicializar aplicação quando DOM estiver pronto
-        document.addEventListener('DOMContentLoaded', () => {
-            const app = new MedicalScheduleApp();
-            app.init();
+        function showTradeModal() {
+             document.getElementById('trade-modal').classList.remove('hidden');
+        }
+        function hideTradeModal() {
+            document.getElementById('trade-form').reset();
+            document.getElementById('trade-shift-id').value = '';
+            document.getElementById('trade-modal').classList.add('hidden');
+        }
+        
+        /**
+         * Controla qual tela principal é exibida para o usuário.
+         * @param {string} viewId - O ID da view a ser mostrada ('login-view', 'master-view', 'doctor-view').
+         */
+        function showView(viewId) {
+            document.getElementById('login-view').classList.add('hidden');
+            document.getElementById('master-view').classList.add('hidden');
+            document.getElementById('doctor-view').classList.add('hidden');
+            document.getElementById(viewId).classList.remove('hidden');
+        }
+
+        // ===================================================================================
+        // ||                                LÓGICA DE LOGIN E AUTENTICAÇÃO                    ||
+        // ===================================================================================
+
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const cpf = document.getElementById('cpf').value;
+            const errorElement = document.getElementById('login-error');
+            errorElement.textContent = '';
+
+            try {
+                const userData = await callApi('login', { email, cpf });
+                appState.currentUser = userData;
+                sessionStorage.setItem('currentUser', JSON.stringify(userData));
+                initializeApp();
+            } catch (error) {
+                errorElement.textContent = error.message;
+            }
         });
+        
+        function handleLogout() {
+            appState.currentUser = null;
+            sessionStorage.removeItem('currentUser');
+            showView('login-view');
+        }
+
+        // ===================================================================================
+        // ||                           INICIALIZAÇÃO E ROTEAMENTO                            ||
+        // ===================================================================================
+        
+        /**
+         * Ponto de entrada da aplicação. Verifica se o usuário já está logado na sessão.
+         */
+        function main() {
+            const storedUser = sessionStorage.getItem('currentUser');
+            if (storedUser) {
+                appState.currentUser = JSON.parse(storedUser);
+                initializeApp();
+            } else {
+                showView('login-view');
+            }
+            
+            // Listeners de logout
+            document.getElementById('logout-btn-master').addEventListener('click', handleLogout);
+            document.getElementById('logout-btn-doctor').addEventListener('click', handleLogout);
+        }
+
+        /**
+         * Inicializa a view correta (master ou doctor) após o login.
+         */
+        async function initializeApp() {
+            if (!appState.currentUser) return;
+
+            if (appState.currentUser.role === 'master') {
+                document.getElementById('master-welcome').textContent = `Bem-vindo(a), ${appState.currentUser.name}!`;
+                showView('master-view');
+                await loadMasterData();
+            } else {
+                document.getElementById('doctor-welcome').textContent = `Bem-vindo(a), Dr(a). ${appState.currentUser.name}!`;
+                showView('doctor-view');
+                await loadDoctorData();
+            }
+        }
+
+        // Inicia a aplicação quando a página é carregada
+        document.addEventListener('DOMContentLoaded', main);
+
+
+        // ===================================================================================
+        // ||                             LÓGICA DA VIEW MASTER                             ||
+        // ===================================================================================
+        
+        async function loadMasterData() {
+            try {
+                const data = await callApi('getMasterInitialData');
+                appState.doctors = data.doctors;
+                appState.schedule = data.schedule;
+                renderCalendar();
+            } catch(error) {
+                console.error("Não foi possível carregar os dados do admin.", error);
+            }
+        }
+        
+        function renderCalendar() {
+             const calendarBody = document.getElementById('calendar-body');
+            calendarBody.innerHTML = '';
+            const date = appState.currentDate;
+            const year = date.getFullYear();
+            const month = date.getMonth();
+
+            document.getElementById('calendar-header').textContent = 
+                `${date.toLocaleString('default', { month: 'long' }).toUpperCase()} ${year}`;
+
+            const firstDay = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            // Preenche os dias vazios no início do mês
+            for (let i = 0; i < firstDay; i++) {
+                calendarBody.insertAdjacentHTML('beforeend', '<div></div>');
+            }
+
+            // Preenche os dias do mês
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const shifts = appState.schedule[dayStr] || [];
+
+                let shiftsHtml = shifts.map(shift => {
+                    const doctorNames = shift.doctors.map(d => d.name).join(', ');
+                    return `<div class="bg-purple-100 text-purple-800 p-1 rounded-md text-xs mb-1 truncate" title="${shift.time} - ${doctorNames}">
+                        <strong>${shift.time.replace('-', ' - ')}:</strong> ${doctorNames}
+                    </div>`;
+                }).join('');
+
+                calendarBody.insertAdjacentHTML('beforeend', `
+                    <div class="calendar-day border border-gray-200 p-2 bg-white rounded-md">
+                        <div class="font-semibold text-gray-700">${day}</div>
+                        ${shiftsHtml}
+                    </div>
+                `);
+            }
+        }
+
+        document.getElementById('prev-month-btn').addEventListener('click', () => {
+            appState.currentDate.setMonth(appState.currentDate.getMonth() - 1);
+            loadMasterData();
+        });
+
+        document.getElementById('next-month-btn').addEventListener('click', () => {
+            appState.currentDate.setMonth(appState.currentDate.getMonth() + 1);
+            loadMasterData();
+        });
+
+        document.getElementById('add-shift-btn').addEventListener('click', () => {
+            document.getElementById('shift-modal-title').textContent = "Adicionar Plantão";
+            setupDoctorSelectors();
+            showShiftModal();
+        });
+
+        document.getElementById('shift-time').addEventListener('change', (e) => {
+            setupDoctorSelectors();
+        });
+        
+        function setupDoctorSelectors() {
+            const container = document.getElementById('doctor-selectors');
+            container.innerHTML = '';
+            const time = document.getElementById('shift-time').value;
+            const dayOfWeek = new Date(document.getElementById('shift-date').value + 'T12:00:00Z').getUTCDay();
+
+            // Sábado é 6, Domingo é 0
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+            
+            let requiredDoctors = 1;
+            if((!isWeekend && time === '19-00') || (isWeekend && time === '07-19')) {
+                requiredDoctors = 2;
+            }
+
+            for(let i=1; i <= requiredDoctors; i++) {
+                const select = document.createElement('select');
+                select.className = 'doctor-select mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2';
+                select.innerHTML = '<option value="">-- Selecione um médico --</option>' + 
+                    appState.doctors.map(d => `<option value="${d.email}">${d.name}</option>`).join('');
+                container.appendChild(select);
+            }
+        }
+        
+        document.getElementById('shift-date').addEventListener('change', setupDoctorSelectors);
+        
+        document.getElementById('shift-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const doctorEmails = Array.from(document.querySelectorAll('.doctor-select'))
+                .map(select => select.value)
+                .filter(value => value !== '');
+            
+            if (doctorEmails.length === 0) {
+                showMessageModal('Atenção', 'Selecione pelo menos um médico.');
+                return;
+            }
+
+            const shiftData = {
+                date: document.getElementById('shift-date').value,
+                time: document.getElementById('shift-time').value,
+                doctorEmails: doctorEmails
+            };
+
+            try {
+                await callApi('createOrUpdateShift', shiftData);
+                hideShiftModal();
+                loadMasterData();
+                showMessageModal('Sucesso', 'Plantão salvo com sucesso!');
+            } catch (error) {
+                // O erro já é exibido pelo callApi
+            }
+        });
+
+
+        // ===================================================================================
+        // ||                             LÓGICA DA VIEW DOUTOR                             ||
+        // ===================================================================================
+        
+        async function loadDoctorData() {
+            try {
+                const data = await callApi('getDoctorData');
+                renderDoctorShifts(data.myShifts);
+                renderTradeRequests(data.tradeRequests);
+                appState.doctors = data.allDoctors;
+            } catch(error) {
+                console.error("Não foi possível carregar os dados do médico.", error);
+            }
+        }
+        
+        function renderDoctorShifts(shifts) {
+            const container = document.getElementById('doctor-shifts');
+            container.innerHTML = '';
+            if (shifts.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">Você não tem plantões agendados.</p>';
+                return;
+            }
+            shifts.forEach(shift => {
+                 const shiftDate = new Date(shift.start);
+                const dateString = shiftDate.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'});
+
+                container.insertAdjacentHTML('beforeend', `
+                    <div class="border rounded-lg p-4 flex justify-between items-center ${shift.status === 'pending_trade' ? 'bg-yellow-100' : 'bg-white'}">
+                        <div>
+                            <p class="font-semibold">${dateString} - ${shift.time.replace('-', ' às ')}</p>
+                            <p class="text-sm text-gray-600">Status: ${shift.status === 'pending_trade' ? 'Troca pendente' : 'Confirmado'}</p>
+                        </div>
+                        ${shift.status !== 'pending_trade' ? `
+                        <button onclick="initiateTrade('${shift.id}')" class="btn-primario text-sm py-1 px-3 rounded-md">
+                            Solicitar Troca
+                        </button>` : ''}
+                    </div>
+                `);
+            });
+        }
+        
+        function renderTradeRequests(requests) {
+             const container = document.getElementById('doctor-trade-requests');
+             container.innerHTML = '';
+             if (requests.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">Nenhum pedido de troca para você.</p>';
+                return;
+            }
+            requests.forEach(req => {
+                const shiftDate = new Date(req.shift.start);
+                const dateString = shiftDate.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit', year: 'numeric'});
+
+                container.insertAdjacentHTML('beforeend', `
+                     <div class="border rounded-lg p-4 bg-blue-50">
+                        <p class="mb-3">
+                            <strong>${req.requestingDoctor.name}</strong> quer trocar o plantão de 
+                            <strong>${dateString} (${req.shift.time.replace('-', ' às ')})</strong> com você.
+                        </p>
+                        <div class="flex justify-end space-x-3">
+                            <button onclick="respondToTrade('${req.id}', 'rejected')" class="bg-red-500 hover:bg-red-600 text-white font-bold text-sm py-1 px-3 rounded-md">Rejeitar</button>
+                            <button onclick="respondToTrade('${req.id}', 'confirmed')" class="bg-green-500 hover:bg-green-600 text-white font-bold text-sm py-1 px-3 rounded-md">Aceitar</button>
+                        </div>
+                    </div>
+                `);
+            });
+        }
+
+        function initiateTrade(shiftId) {
+            const shiftDetails = document.getElementById('trade-shift-details');
+            const select = document.getElementById('trade-doctor-select');
+            
+            document.getElementById('trade-shift-id').value = shiftId;
+            shiftDetails.textContent = `...`; // Colocar data e hora do plantão
+            
+            // Preenche o select com outros médicos
+            const otherDoctors = appState.doctors.filter(d => d.email !== appState.currentUser.email);
+            select.innerHTML = '<option value="">-- Selecione um médico --</option>' +
+                otherDoctors.map(d => `<option value="${d.email}">${d.name}</option>`).join('');
+
+            showTradeModal();
+        }
+
+        document.getElementById('trade-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const tradeData = {
+                shiftId: document.getElementById('trade-shift-id').value,
+                proposedDoctorEmail: document.getElementById('trade-doctor-select').value
+            };
+
+            try {
+                await callApi('requestTrade', tradeData);
+                hideTradeModal();
+                loadDoctorData();
+                showMessageModal('Sucesso', 'Pedido de troca enviado! O médico será notificado.');
+            } catch(error) {
+                // Erro já tratado pelo callApi
+            }
+        });
+        
+        async function respondToTrade(tradeId, response) {
+            try {
+                await callApi('respondToTrade', { tradeId, response });
+                loadDoctorData();
+                showMessageModal('Sucesso', `Troca ${response === 'confirmed' ? 'aceita' : 'rejeitada'} com sucesso!`);
+            } catch (error) {
+                // Erro já tratado
+            }
+        }
     </script>
+
 </body>
+
 </html>
