@@ -362,25 +362,13 @@
                     return;
                 }
 
-                try {
-                    Utils.showLoading();
-                    const result = await api.login(email, cpf);
-
-                    if (result.success) {
-                        window.appState.token = result.token;
-                        window.appState.currentUser = result.user;
-                        window.appState.saveToStorage();
-                        this.showMainApp();
-                    } else {
-                        errorDiv.textContent = result.error || 'Erro no login';
-                        errorDiv.classList.remove('hidden');
-                    }
-                } catch (error) {
-                    errorDiv.textContent = 'Erro de conexão. Verifique a URL da API.';
-                    errorDiv.classList.remove('hidden');
-                } finally {
-                    Utils.hideLoading();
-                }
+} catch (error) {
+    console.error('Erro detalhado:', error);
+    errorDiv.textContent = `Erro: ${error.message || 'Falha na conexão com o servidor'}`;
+    errorDiv.classList.remove('hidden');
+} finally {
+    Utils.hideLoading();
+}
             }
 
             showMainApp() {
