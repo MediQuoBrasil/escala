@@ -237,7 +237,7 @@
         
         // URL do Web App implantado no Google Apps Script. 
         // SUBSTITUIR PELA URL REAL APÓS A IMPLANTAÇÃO.
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbydQqxx1_I00-PyyWIlqaLihm8ZbV4sQ1jGgZTzyzigh2xwqpRUXVQbcglSAtefuTG9zQ/exec';
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby-lERhuxbfqhGYXZOO22pH387OdFDGkErVy1SiVEyuZXcjUpVXGoLESKNjVXCqewUg/exec';
 
         // Objeto para manter o estado da aplicação
         const appState = {
@@ -260,6 +260,8 @@
          */
         async function callApi(action, payload = {}) {
             showLoading();
+            // Log de diagnóstico no console do navegador para garantir que a função está sendo chamada.
+            console.log(`%c[API Request] -> Action: ${action}`, 'color: blue; font-weight: bold;', payload);
             try {
                 // Monta o corpo da requisição
                 const requestBody = {
@@ -269,7 +271,7 @@
 
                 const response = await fetch(SCRIPT_URL, {
                     method: 'POST',
-                    // mode: 'cors' é o padrão, não precisa especificar.
+                    mode: 'cors', // Garante que estamos fazendo uma requisição CORS explícita.
                     headers: {
                         'Content-Type': 'application/json',
                     },
